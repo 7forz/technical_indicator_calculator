@@ -1,0 +1,6 @@
+__pycache__/
+.vscode/
+*.py[cod]
+*$py.class
+*.txt
+*.bin

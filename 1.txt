@@ -1,8 +1,0 @@
-http://pandas.pydata.org/pandas-docs/stable/10min.html
-http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing
-http://pandas.pydata.org/pandas-docs/stable/merging.html#merging
-
-
-# 指数移动平均线ema     page 56
-# 方差  page 42
-# np.vectorize()    page 80
