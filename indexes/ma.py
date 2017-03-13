@@ -20,13 +20,13 @@ class MA(Index):
             # 数据库存在分3种情况 有当天K线数据且已经算出来 有K线但NaN 和没有K线数据
             # 尝试从已有数据读取 读取成功马上返回
             try:
-                result = data.loc[date, 'ma%s' % days]  # 也可能抛出KeyError
-                if str(result) != 'nan':  # result不是简单的np.nan
+                result = data.loc[date, 'ma%s' % days]  # 若没有K线数据会抛出KeyError
+                if str(result) != 'nan':  # 有K线但NaN result不是简单的np.nan
                     return result
                 else:
-                    raise KeyError
-            except KeyError:
-                # 没有数据 更新数据到最新 然后再计算
+                    raise RuntimeError
+            except (KeyError, RuntimeError):
+                # 没有数据 更新数据到最新
                 data = global_data.update_data(self.stock)
                 closes = data['close']
         else:
@@ -34,6 +34,7 @@ class MA(Index):
             data = global_data.add_data(self.stock, start='2016-01-01')
             closes = data['close']
 
+        # 计算MA
         if len(closes) > days:  # 避免只有50天数据却计算了MA90的问题 否则求卷积后提取时会有问题
             weights = np.ones(days) / days  # 权重相等
             ma = np.convolve(weights, closes)[days-1:1-days]  # 求出(closes-days+1)天的MA(days) 最早的(days-1)天缺数据

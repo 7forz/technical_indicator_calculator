@@ -16,7 +16,7 @@ else:
     stocks = {}
 
 def add_data(stock, start='2016-01-01'):  # 格式:1月必须写作01
-    """ 传入日期 添加对应股票的从给定日期开始的全部K线数据 """
+    """ 添加对应股票的从给定日期开始的全部K线数据 """
     global stocks
     new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成日期索引
     stocks[stock] = pd.concat([stocks.get(stock) , new_df])  # 注意原stocks[stock]可能为空 用concat合并数据
