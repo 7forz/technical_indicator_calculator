@@ -7,7 +7,6 @@ import pandas as pd
 import tushare as ts   # reference: http://tushare.org/trading.html
 
 ROOT_DIR_PATH = os.path.split(os.path.realpath(__file__))[0]  # 保证是global_data.py所在的目录
-
 DB_PATH = ROOT_DIR_PATH + '/database.bin'
 if os.path.exists(DB_PATH):
     with open(DB_PATH, 'rb') as f:

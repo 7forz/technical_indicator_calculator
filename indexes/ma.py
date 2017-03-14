@@ -36,12 +36,8 @@ class MA(Index):
 
         # 计算MA
         if len(closes) > days:  # 避免只有50天数据却计算了MA90的问题 否则求卷积后提取时会有问题
-            weights = np.ones(days) / days  # 权重相等
-            ma = np.convolve(weights, closes)[days-1:1-days]  # 求出(closes-days+1)天的MA(days) 最早的(days-1)天缺数据
-            ma = np.concatenate( (np.array([np.nan] * (days-1)), ma) )  # 缺数据所以填入(days-1)个nan 确保长度相等日期对齐
+            ma = self.ma(closes, days)
             new_data = global_data.add_column(self.stock, 'ma%s' % days, ma)  # 计算出来后填入总表
-
-            # print('after calculating\n' + str(new_data.tail()))  # for debugging
             return new_data.loc[date, 'ma%s' % days]  # 最终返回对应日期的MA值
         else:
             return np.nan
