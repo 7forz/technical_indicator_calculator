@@ -1,3 +1,3 @@
 All the unittests are placed here.
 
-Usage: `python test_ma.py`
+Usage: `python3 test_ma.py`

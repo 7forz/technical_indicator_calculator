@@ -5,7 +5,8 @@ import numpy as np
 
 
 class Index():
-    
+    """ 指标基类 """
+
     def __init__(self, stock):
         self.stock = stock
 
@@ -13,7 +14,8 @@ class Index():
         """ 计算简单移动平均线 传入一个array和days 返回一个array """
         _weights = np.ones(days) / days  # 权重相等
         ma = np.convolve(_weights, array)[days-1:1-days]  # 求出(array-days+1)天的MA(days) 最早的(days-1)天缺数据
-        ma = np.concatenate( (np.array([np.nan] * (days-1)), ma) )  # 缺数据所以填入(days-1)个nan 确保长度相等日期对齐
+        ma = np.concatenate((np.array([np.nan] * (days-1)), ma))  # 缺数据所以填入(days-1)个nan 确保长度相等日期对齐
+        assert len(array) == len(ma)
         return ma
 
     def ema(self, array, days):
@@ -26,3 +28,11 @@ class Index():
             _result.append(_result[i-1] * (days-1) / (days+1) + array[i] * 2 / (days+1))
         assert len(array) == len(_result)
         return np.array(_result)  # 返回一个np.array而不是list对象
+
+    def previous_value(self, date, n):
+        """ 获取给定日期n天前的指标值 由于各不相同 应分别重写该方法 """
+        pass
+
+    def next_value(self, date, n):
+        """ 获取给定日期n天后的指标值 由于各不相同 应分别重写该方法 """
+        pass

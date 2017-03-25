@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- encoding: utf8 -*-
 
-import numpy as np
+import pandas as pd
 from indexes.base import Index
 import global_data
 
@@ -21,55 +21,64 @@ class MACD(Index):
         super().__init__(stock)
 
     def get_macd(self, date, short=12, long=26, mid=9):
-        """ 获取给定日期的MACD """
+        """ 获取给定日期的MACD 假定已有最新的K线数据 """
         data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
+        assert data is not None, 'must have K-data before using get_macd()!'
+        
+        closes = data['close']  # 到当日的全部收盘价
 
-        if data is not None:
-            # 数据库存在分3种情况 1.已经算出来给定日期的EMA 2.已经算出给定日期以前的EMA 3.只有K线
-            try:
-                date_index = np.where(data.index == date)[0][0]  # 给定日期的数组下标 where返回(array([123]),)
-            except IndexError:  # 给的日期太新导致越界 判断是情况1与情况2 情况2需要补充数据
-                data = global_data.update_data(self.stock)
-                date_index = 99999999999  # 保证数组越界
+        # 数据库存在分2种情况 1.已经算出来给定日期的EMA 2.没有给定日期的EMA  注意K线数据是最新的
+        # 情况1: 直接提取   情况2: 算出最新的EMA数据
+        try:
+            date_index = list(data.index).index(date)  # 给定日期的数组下标
+        except ValueError:  # 给的日期太新导致越界 判断是情况1与情况2
+            date_index = 99999999999  # 保证数组越界
 
-            # 获取EMA(CLOSE,SHORT)和EMA(CLOSE,LONG)
-            try:
-                ema_short = data['ema%s' % short]  # 若没有EMA(N)数据会抛出KeyError
-                if not ema_short[date_index]:
-                    raise RuntimeError
-            except (KeyError, RuntimeError, IndexError):
-                # 没有数据 更新数据到最新 并计算出全部的EMA(short)值
-                data = global_data.update_data(self.stock)
-                closes = data['close']
-                ema_short = self.ema(closes, short)
-            
-            try:
-                ema_long = data['ema%s' % long]  # 若没有EMA(N)数据会抛出KeyError
-                if not ema_long[date_index]:
-                    raise RuntimeError
-            except (KeyError, RuntimeError, IndexError):
-                # 没有数据 更新数据到最新 并计算出全部的EMA(long)值
-                data = global_data.update_data(self.stock)
-                closes = data['close']
-                ema_long = self.ema(closes, long)
-        else:
-            # 无该股K线数据则从网上获取 再提取收盘价
-            data = global_data.add_data(self.stock, start='2016-01-01')
-            closes = data['close']
+        # 获取EMA(CLOSE,SHORT)和EMA(CLOSE,LONG)
+        try:
+            ema_short = data['ema%s' % short]  # 若没有EMA(N)数据会抛出KeyError
+            if str(ema_short[date_index]) == 'nan':
+                raise RuntimeError
+        except (KeyError, RuntimeError, IndexError):
+            # 没有数据 计算出全部的EMA(short)值
             ema_short = self.ema(closes, short)
+
+        try:
+            ema_long = data['ema%s' % long]  # 若没有EMA(N)数据会抛出KeyError
+            if str(ema_long[date_index]) == 'nan':
+                raise RuntimeError
+        except (KeyError, RuntimeError, IndexError):
+            # 没有数据 计算出全部的EMA(long)值
             ema_long = self.ema(closes, long)
+
         # 计算完毕 保存EMA(N)的值到总表
-        new_data = global_data.add_column(self.stock, 'ema%s' % short, ema_short)
-        new_data = global_data.add_column(self.stock, 'ema%s' % long, ema_long)
+        global_data.add_column(self.stock, 'ema%s' % short, ema_short)
+        global_data.add_column(self.stock, 'ema%s' % long, ema_long)
 
         # DIF:EMA(CLOSE,SHORT)-EMA(CLOSE,LONG);
-        dif = ema_short - ema_long  # np.array
-        
+        dif = ema_short - ema_long  # series
+
         # DEA:EMA(DIF,MID);
-        dea = self.ema(dif, mid)  # np.array
-        
+        dea = pd.Series(self.ema(dif, mid), index=data.index)  # 转换为series
+
         # MACD:(DIF-DEA)*2;
-        macd = (dif - dea) * 2  # np.array
-        
-        date_index = np.where(data.index == date)[0][0]  # 给定日期的数组下标
-        return macd[date_index]
+        macd = (dif - dea) * 2  # series
+
+        # 计算MACD需要较多运算 不能直接读取(至少要算一次dif的EMA) 所以把结果暂时存下来
+        self.temp_saved_values = macd   # series
+
+        try:
+            date_index = list(data.index).index(date)  # 给定日期的数组下标
+            return macd[date_index]
+        except ValueError:  # 当天停牌
+            return macd[-1]  # 尝试返回最近的数据
+
+    def previous_value(self, date, n):
+        """ 必须先调用get_macd()后再调用此方法 从已计算的MACD数据中获取给定日期n天前的MACD值 """
+        data = global_data.get_data(self.stock)
+        date_index = list(data.index).index(date)
+        return self.temp_saved_values[date_index-n]
+
+    def get_saved_macd(self, date):
+        """ 从已经计算的MACD列表中提取值 series可以像字典那样用 也可以像列表那样用 """
+        return self.temp_saved_values[date]
