@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# -*- encoding: utf8 -*-
+# -*- encoding: utf-8 -*-
 
 # convert database.bin to csv files for analysing
 

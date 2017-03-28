@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# -*- encoding: utf8 -*-
+# -*- encoding: utf-8 -*-
 
 import numpy as np
 
@@ -19,13 +19,24 @@ class Index():
         return ma
 
     def ema(self, array, days):
-        """ 计算指数移动平均线 传入一个array和days 返回一个array """
+        """ 计算指数移动平均线 传入一个array和int 返回一个array """
         _result = [array[0]]  # result初始值定为array的初值
         for i in range(1, len(array)):  # 后面的进行递归计算
             # EMA(N) = 前一日EMA(N) X (N-1)/(N+1) + 今日收盘价 X 2/(N+1)
             # e.g.
             # EMA(9) = 前一日EMA(9) X 8/10 + 今日收盘价 X 2/10
             _result.append(_result[i-1] * (days-1) / (days+1) + array[i] * 2 / (days+1))
+        assert len(array) == len(_result)
+        return np.array(_result)  # 返回一个np.array而不是list对象
+
+    def sma(self, array, n, m):
+        """ 计算array的n日移动平均 m为权重  ema相当于sma(x,n+1,2) """
+        _result = [array[0]]  # result初始值定为array的初值
+        for i in range(1, len(array)):  # 后面的进行递归计算
+            # SMA(N,M) = 前一日SMA(N) X (N-M)/N + 今日收盘价 X M/N
+            # e.g.
+            # SMA(6,1) = 前一日SMA(6) X 5/6 + 今日收盘价 X 1/6
+            _result.append(_result[i-1] * (n-m) / n + array[i] * m / n)
         assert len(array) == len(_result)
         return np.array(_result)  # 返回一个np.array而不是list对象
 

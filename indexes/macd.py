@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# -*- encoding: utf8 -*-
+# -*- encoding: utf-8 -*-
 
 import pandas as pd
 from indexes.base import Index
