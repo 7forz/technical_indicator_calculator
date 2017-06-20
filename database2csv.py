@@ -6,9 +6,9 @@
 import os
 import pickle
 
-DB_PATH = 'database.bin'
-if os.path.exists(DB_PATH):
-    with open(DB_PATH, 'rb') as f:
+DB_FILE = 'database.bin'
+if os.path.exists(DB_FILE):
+    with open(DB_FILE, 'rb') as f:
         stocks = pickle.load(f)
         for k in stocks:
             stocks[k].to_csv('z:/%s.csv' % k)

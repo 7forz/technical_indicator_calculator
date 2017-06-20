@@ -7,4 +7,4 @@
 * Python 3.5/3.6
 * numpy 1.11.2
 * pandas 0.19.2
-* tushare 0.6.9
+* tushare 0.8.2

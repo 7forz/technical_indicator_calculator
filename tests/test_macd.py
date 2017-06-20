@@ -26,7 +26,7 @@ class TestMACD(unittest.TestCase):
         self.assertAlmostEqual(macd.get_macd('2017-03-17', 9, 20, 7), -0.02, places=2)
         self.assertAlmostEqual(macd.previous_value('2017-03-17', 1), 0.01, places=2)  # 获取的是03-16的值
         self.assertAlmostEqual(macd.get_saved_macd('2017-03-16'), 0.01, places=2)  # 获取的也是03-16的值
-        global_data.save_database(global_data.DB_PATH)
+        global_data.save_database(global_data.DB_FILE)
 
 if __name__ == '__main__':
     unittest.main()

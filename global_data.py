@@ -7,9 +7,9 @@ import pandas as pd
 import tushare as ts   # reference: http://tushare.org/trading.html
 
 ROOT_DIR_PATH = os.path.split(os.path.realpath(__file__))[0]  # 保证是global_data.py所在的目录
-DB_PATH = ROOT_DIR_PATH + '/database.bin'
-if os.path.exists(DB_PATH):
-    with open(DB_PATH, 'rb') as f:
+DB_FILE = ROOT_DIR_PATH + '/database.bin'
+if os.path.exists(DB_FILE):
+    with open(DB_FILE, 'rb') as f:
         stocks = pickle.load(f)
 else:
     stocks = {}
@@ -36,7 +36,7 @@ def add_column(stock, column, data):
     stocks[stock][column] = data
     return stocks[stock]
 
-def save_database(filename=DB_PATH):
+def save_database(filename=DB_FILE):
     """ 保存当前数据到文件中 """
     with open('%s' % filename, 'wb') as f:
         pickle.dump(stocks, f, pickle.HIGHEST_PROTOCOL)
@@ -50,5 +50,5 @@ def update_data(stock):
 
     new_df = ts.get_k_data(stock, last_date).set_index('date')
     stocks[stock] = pd.concat([stocks[stock], new_df])
-    stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True)  # last_date数据重复
+    stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True)  # last_date数据重复 除权后会失效 导致出错 所以若有除权 应删除相应数据
     return stocks[stock]

@@ -20,7 +20,7 @@ class TestMA(unittest.TestCase):
         self.assertAlmostEqual(ma.get_ma('2017-03-14', 30), 9.41, places=2)
         self.assertAlmostEqual(ma.get_ma('2017-03-09', 90), 9.30, places=2)
         self.assertAlmostEqual(ma.get_ma('2017-03-20', 90), 9.32, places=2)
-        global_data.save_database(global_data.DB_PATH)
+        global_data.save_database(global_data.DB_FILE)
 
 if __name__ == '__main__':
     unittest.main()

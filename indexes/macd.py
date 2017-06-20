@@ -24,7 +24,7 @@ class MACD(Index):
         """ 获取给定日期的MACD 假定已有最新的K线数据 """
         data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
         assert data is not None, 'must have K-data before using get_macd()!'
-        
+
         closes = data['close']  # 到当日的全部收盘价
 
         # 数据库存在分2种情况 1.已经算出来给定日期的EMA 2.没有给定日期的EMA  注意K线数据是最新的
@@ -34,7 +34,7 @@ class MACD(Index):
         except ValueError:  # 给的日期太新导致越界 判断是情况1与情况2
             date_index = 99999999999  # 保证数组越界
 
-        # 获取EMA(CLOSE,SHORT)和EMA(CLOSE,LONG)
+        # 获取EMA(CLOSE,SHORT)
         try:
             ema_short = data['ema%s' % short]  # 若没有EMA(N)数据会抛出KeyError
             if str(ema_short[date_index]) == 'nan':
@@ -42,7 +42,9 @@ class MACD(Index):
         except (KeyError, RuntimeError, IndexError):
             # 没有数据 计算出全部的EMA(short)值
             ema_short = self.ema(closes, short)
+            global_data.add_column(self.stock, 'ema%s' % short, ema_short)  # 保存EMA(N)的值到总表
 
+        # 获取EMA(CLOSE,LONG)
         try:
             ema_long = data['ema%s' % long]  # 若没有EMA(N)数据会抛出KeyError
             if str(ema_long[date_index]) == 'nan':
@@ -50,13 +52,10 @@ class MACD(Index):
         except (KeyError, RuntimeError, IndexError):
             # 没有数据 计算出全部的EMA(long)值
             ema_long = self.ema(closes, long)
-
-        # 计算完毕 保存EMA(N)的值到总表
-        global_data.add_column(self.stock, 'ema%s' % short, ema_short)
-        global_data.add_column(self.stock, 'ema%s' % long, ema_long)
+            global_data.add_column(self.stock, 'ema%s' % long, ema_long)
 
         # DIF:EMA(CLOSE,SHORT)-EMA(CLOSE,LONG);
-        dif = ema_short - ema_long  # series
+        dif = ema_short - ema_long  # array
 
         # DEA:EMA(DIF,MID);
         dea = pd.Series(self.ema(dif, mid), index=data.index)  # 转换为series
