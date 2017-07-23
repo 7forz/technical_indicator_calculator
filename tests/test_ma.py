@@ -13,7 +13,7 @@ import global_data
 class TestMA(unittest.TestCase):
     def test_ma(self):
         ma = MA('000001')
-        global_data.update_data('000001')
+        global_data.add_data('000001')
         self.assertAlmostEqual(ma.get_ma('2017-03-09', 5), 9.42, places=2)  # 与真实值对比 精确到后2位
         self.assertAlmostEqual(ma.get_ma('2017-02-10', 10), 9.29, places=2)
         self.assertAlmostEqual(ma.get_ma('2016-12-15', 30), 9.37, places=2)
