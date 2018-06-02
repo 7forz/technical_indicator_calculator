@@ -10,7 +10,7 @@ class Index():
     def __init__(self, stock):
         self.stock = stock
 
-    def ma(self, array, days):
+    def ma(self, array:np.ndarray, days:int) -> np.ndarray:
         """ 计算简单移动平均线 传入一个array和days 返回一个array """
         _weights = np.ones(days) / days  # 权重相等
         ma = np.convolve(_weights, array)[days-1:1-days]  # 求出(array-days+1)天的MA(days) 最早的(days-1)天缺数据
@@ -18,7 +18,7 @@ class Index():
         assert len(array) == len(ma)
         return ma
 
-    def ema(self, array, days):
+    def ema(self, array:np.ndarray, days:int) -> np.ndarray:
         """ 计算指数移动平均线 传入一个array和int 返回一个array """
         _result = [array[0]]  # result初始值定为array的初值
         for i in range(1, len(array)):  # 后面的进行递归计算
@@ -29,7 +29,7 @@ class Index():
         assert len(array) == len(_result)
         return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-    def sma(self, array, n, m):
+    def sma(self, array:np.ndarray, n, m) -> np.ndarray:
         """ 计算array的n日移动平均 m为权重  ema相当于sma(x,n+1,2) """
         _result = [array[0]]  # result初始值定为array的初值
         for i in range(1, len(array)):  # 后面的进行递归计算
@@ -40,7 +40,7 @@ class Index():
         assert len(array) == len(_result)
         return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-    def llv(self, array, n):
+    def llv(self, array:np.ndarray, n) -> np.ndarray:
         """ n日内最低价的最低值 从数据的第一天开始往后计算 """
         assert n > 1, 'n应>=2'
         _result = []
@@ -51,7 +51,7 @@ class Index():
                 _result.append(min(array[:i+1]))
         return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-    def hhv(self, array, n):
+    def hhv(self, array:np.ndarray, n) -> np.ndarray:
         """ n日内最高价的最高值 """
         assert n > 1, 'n应>=2'
         _result = []

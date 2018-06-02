@@ -15,9 +15,11 @@ else:
     stocks = {}
 
 # 最新的交易日 即上证指数最近的日期
-NEWEST_TRADE_DATE = ts.get_k_data('000001', '2017-03-01', index=True).set_index('date').index[-1]
+NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
+# 获取所有F10数据 例如中文名称等
+BASIC_INFO = ts.get_stock_basics()
 
-def add_data(stock, start='2016-01-01'):  # 格式:1月必须写作01
+def add_data(stock, start='2016-07-01'):  # 格式:1月必须写作01
     """ 添加对应股票的从给定日期开始的全部K线数据 """
     global stocks
     new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成日期索引
@@ -42,7 +44,7 @@ def save_database(filename=DB_FILE):
         pickle.dump(stocks, f, pickle.HIGHEST_PROTOCOL)
 
 def update_data(stock):
-    """ 更新给定股票的K线信息至最新 与add_data不同之处是它会按当前的数据更新 减少下载量 """
+    """ 更新给定股票的K线信息至最新 与add_data不同之处是它会按当前的数据更新 减少下载量 若无数据将会出错"""
     global stocks
     last_date = stocks[stock].index[-1]  # 获取数据库中该股最近的日期
     if last_date == NEWEST_TRADE_DATE:  # 数据库已经是最新 直接返回 下载的操作耗费大量时间
