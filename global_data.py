@@ -19,7 +19,7 @@ NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
 # 获取所有F10数据 例如中文名称等
 BASIC_INFO = ts.get_stock_basics()
 
-def add_data(stock, start='2016-07-01'):  # 格式:1月必须写作01
+def add_data(stock, start=''):  # 格式:1月必须写作01
     """ 添加对应股票的从给定日期开始的全部K线数据 """
     global stocks
     new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成日期索引
