@@ -39,4 +39,5 @@ def main(stock='000001', date=global_data.NEWEST_TRADE_DATE, p_MA=5, p_MACD=(12,
     # global_data.save_database(global_data.DB_FILE)
 
 if __name__ == '__main__':
-    main()
+    main(stock='000001')
+    main(stock='HK.00700')
