@@ -62,6 +62,20 @@ class Index():
                 _result.append(max(array[:i+1]))
         return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
+    def avedev(self, array, n):
+        """ 平均绝对误差 一定区间内的值与该区间MA的差的绝对值之平均 """
+        assert len(array) > n
+        ma = self.ma(array, n)
+
+        _result = [np.nan] * len(array)
+        for i in range(n-1, len(array)):
+            _sum = 0
+            for j in range(n):
+                _sum += abs(array[i-j] - ma[i])  # i-n ~ i-1
+            _sum /= n
+            _result[i] = _sum
+        return np.array(_result)
+
     def previous_value(self, date, n):
         """ 获取给定日期n天前的指标值 由于各不相同 应分别重写该方法 """
         pass

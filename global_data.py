@@ -20,7 +20,9 @@ NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
 BASIC_INFO = ts.get_stock_basics()
 
 def add_data(stock, start=''):  # 格式:1月必须写作01
-    """ 添加对应股票的从给定日期开始的全部K线数据 """
+    """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
+        并返回该股票的数据
+    """
     global stocks
     new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成日期索引
     stocks[stock] = pd.concat([stocks.get(stock), new_df])  # 注意原stocks[stock]可能为空 用concat合并数据
@@ -29,8 +31,12 @@ def add_data(stock, start=''):  # 格式:1月必须写作01
     return stocks[stock]
 
 def get_data(stock):
-    """ 若有返回对应的dataframe 若无返回None """
-    return stocks.get(stock)
+    """ 若有返回对应的dataframe 若无则下载数据后返回对应的dataframe """
+    result =  stocks.get(stock)
+    if result is not None:
+        return result
+    else:
+        return add_data(stock)
 
 def add_column(stock, column, data):
     """ 增加一列 注意data的长度要和原表格的行数相等 """
