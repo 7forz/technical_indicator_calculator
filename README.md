@@ -1,10 +1,6 @@
-# numpy_pandas_tushare_learning
+# technical_indicator_calculator
 
-正在学习相关模块，当前实现的功能有：
-
-使用tushare获取给定股票代码的K线数据，并计算给定参数的MA、MACD、RSI、KDJ、MTM等指标，使用方法见tests文件夹下的.py文件
-
-更多功能待更新...
+使用tushare获取A股给定股票代码的K线数据，使用futu获取港股和美股给定代码的K线数据（需先配置好[Futu OpenD](https://github.com/FutunnOpen/py-futu-api)）。可以计算给定参数的MA、MACD、RSI、KDJ、MTM、CCI等指标，使用方法见demo.py文件
 
 # 运行环境:
 

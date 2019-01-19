@@ -1,8 +1,12 @@
 #!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 
+import configparser
 import os
 import pickle
+import subprocess
+import time
+
 import pandas as pd
 import tushare as ts   # reference: http://tushare.org/trading.html
 
@@ -19,12 +23,36 @@ NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
 # 获取所有F10数据 例如中文名称等
 BASIC_INFO = ts.get_stock_basics()
 
+# 是否启用futu的港股美股接口
+conf = configparser.ConfigParser()
+conf.read('config.ini')
+futu_enabled = conf['Config'].getboolean('futu_enabled')
+if futu_enabled:
+    import futu
+    opend_path = conf['Config']['futu_opend_path']
+    login_account = conf['Config']['futu_login_account']
+    login_pwd_md5 = conf['Config']['futu_login_pwd_md5']
+    subprocess.Popen(
+        [opend_path, '-login_account=%s' % login_account, '-login_pwd_md5=%s' % login_pwd_md5]
+    )
+    print('Wait for FutuOpenD connection..')
+    time.sleep(5)
+
 def add_data(stock, start=''):  # 格式:1月必须写作01
     """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
         并返回该股票的数据
     """
+    if stock.isdigit():  # 如果是纯数字 则调用tushare的沪深数据接口
+        new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成按日期索引
+    else:  # 若代码包含英文字符 则调用futu的接口
+        quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
+        _return_code, new_df, _ = quote_ctx.request_history_kline(stock)
+        # 返回的日期格式为'yyyy-mm-dd 00:00:00' 把后面的去掉 与tushare返回的格式保持统一
+        new_df['time_key'] = new_df['time_key'].apply(lambda s: s.split(' ')[0])
+        new_df.set_index('time_key', inplace=True)  # 改成按日期索引
+        quote_ctx.close()
+
     global stocks
-    new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成日期索引
     stocks[stock] = pd.concat([stocks.get(stock), new_df])  # 注意原stocks[stock]可能为空 用concat合并数据
     stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True) # 用收盘价和成交量去掉重复数据(默认全部会导致对新数据去重失效) 而日期是索引不能用
     stocks[stock].sort_index(inplace=True, kind='mergesort')  # 确保添加后时间有序
@@ -49,14 +77,14 @@ def save_database(filename=DB_FILE):
     with open('%s' % filename, 'wb') as f:
         pickle.dump(stocks, f, pickle.HIGHEST_PROTOCOL)
 
-def update_data(stock):
-    """ 更新给定股票的K线信息至最新 与add_data不同之处是它会按当前的数据更新 减少下载量 若无数据将会出错"""
-    global stocks
-    last_date = stocks[stock].index[-1]  # 获取数据库中该股最近的日期
-    if last_date == NEWEST_TRADE_DATE:  # 数据库已经是最新 直接返回 下载的操作耗费大量时间
-        return stocks[stock]
+# def update_data(stock):  # never used?
+#     """ 更新给定股票的K线信息至最新 与add_data不同之处是它会按当前的数据更新 减少下载量 若无数据将会出错"""
+#     global stocks
+#     last_date = stocks[stock].index[-1]  # 获取数据库中该股最近的日期
+#     if last_date == NEWEST_TRADE_DATE:  # 数据库已经是最新 直接返回 下载的操作耗费大量时间
+#         return stocks[stock]
 
-    new_df = ts.get_k_data(stock, last_date).set_index('date')
-    stocks[stock] = pd.concat([stocks[stock], new_df])
-    stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True)  # last_date数据重复 除权后会失效 导致出错 所以若有除权 应删除相应数据
-    return stocks[stock]
+#     new_df = ts.get_k_data(stock, last_date).set_index('date')
+#     stocks[stock] = pd.concat([stocks[stock], new_df])
+#     stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True)  # last_date数据重复 除权后会失效 导致出错 所以若有除权 应删除相应数据
+#     return stocks[stock]
