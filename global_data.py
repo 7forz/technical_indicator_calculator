@@ -32,11 +32,17 @@ if futu_enabled:
     opend_path = conf['Config']['futu_opend_path']
     login_account = conf['Config']['futu_login_account']
     login_pwd_md5 = conf['Config']['futu_login_pwd_md5']
-    subprocess.Popen(
-        [opend_path, '-login_account=%s' % login_account, '-login_pwd_md5=%s' % login_pwd_md5]
-    )
-    print('Wait for FutuOpenD connection..')
-    time.sleep(5)
+
+    opend_basename = os.path.basename(opend_path)  # FutuOpenD.exe
+    # 若没有运行futu daemon 则启动 这里只做了Windows系统的适配 否则会报错
+    task_status = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq %s' % opend_basename],
+                                 capture_output=True, check=True).stdout
+    if opend_basename.encode() not in task_status:  # task_status是bytes opend_basename是str
+        subprocess.Popen(
+            [opend_path, '-login_account=%s' % login_account, '-login_pwd_md5=%s' % login_pwd_md5, '-log_level=warning']
+        )
+        print('Wait for FutuOpenD connection..')
+        time.sleep(5)
 
 def add_data(stock, start=''):  # 格式:1月必须写作01
     """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
@@ -76,15 +82,3 @@ def save_database(filename=DB_FILE):
     """ 保存当前数据到文件中 """
     with open('%s' % filename, 'wb') as f:
         pickle.dump(stocks, f, pickle.HIGHEST_PROTOCOL)
-
-# def update_data(stock):  # never used?
-#     """ 更新给定股票的K线信息至最新 与add_data不同之处是它会按当前的数据更新 减少下载量 若无数据将会出错"""
-#     global stocks
-#     last_date = stocks[stock].index[-1]  # 获取数据库中该股最近的日期
-#     if last_date == NEWEST_TRADE_DATE:  # 数据库已经是最新 直接返回 下载的操作耗费大量时间
-#         return stocks[stock]
-
-#     new_df = ts.get_k_data(stock, last_date).set_index('date')
-#     stocks[stock] = pd.concat([stocks[stock], new_df])
-#     stocks[stock].drop_duplicates(subset=['close', 'volume'], inplace=True)  # last_date数据重复 除权后会失效 导致出错 所以若有除权 应删除相应数据
-#     return stocks[stock]
