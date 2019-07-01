@@ -7,8 +7,10 @@ import pickle
 import subprocess
 import time
 
+import numpy as np
 import pandas as pd
-import tushare as ts   # reference: http://tushare.org/trading.html
+import tushare as ts  # reference: http://tushare.org/trading.html
+from iexfinance.stocks import get_historical_data
 
 ROOT_DIR_PATH = os.path.split(os.path.realpath(__file__))[0]  # 保证是global_data.py所在的目录
 DB_FILE = ROOT_DIR_PATH + '/database.bin'
@@ -24,6 +26,7 @@ NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
 # 获取所有F10数据 例如中文名称等
 BASIC_INFO = {}
 try:
+    print('Getting basic F10 info for CN..')
     BASIC_INFO['CN'] = ts.get_stock_basics()
 except:
     BASIC_INFO['CN'] = pd.DataFrame()
@@ -31,8 +34,10 @@ except:
 
 conf = configparser.ConfigParser()
 conf.read('config.ini')
-DEFAULT_START_DATE = conf['Config']['default_start_date']
+START_DECISION_DATE = conf['Config']['start_decision_date']
 START_DOWNLOAD_DATE = conf['Config']['start_download_date']
+IEXFINANCE_TOKEN = conf['Config']['iexfinance_token']
+
 # 是否启用futu的港股美股接口
 futu_enabled = conf['Config'].getboolean('futu_enabled')
 if futu_enabled:
@@ -53,29 +58,62 @@ if futu_enabled:
         time.sleep(5)
     # 等待daemon启动完成后 下载港股和美股的F10数据
     quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
+    print('Getting basic F10 info for HK..')
     return_code, data_df = quote_ctx.get_stock_basicinfo(futu.Market.HK, stock_type=futu.SecurityType.STOCK)
     assert return_code == 0, 'get data from futu error: %s' % data_df
     BASIC_INFO['HK'] = data_df.set_index('code')
 
+    print('Getting basic F10 info for US..')
     return_code, data_df = quote_ctx.get_stock_basicinfo(futu.Market.US, stock_type=futu.SecurityType.STOCK)
     assert return_code == 0, 'get data from futu error: %s' % data_df
     BASIC_INFO['US'] = data_df.set_index('code')
     quote_ctx.close()
 
+
 def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  2019-01-01
     """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
         并返回该股票的数据
+
+        e.g.
+                     code    open   close    high     low     volume 
+        date (是字符串)
+        2016-11-14  000001  8.883   8.941   8.970   8.883   975078.0
     """
     if stock.isdigit():  # 如果是纯数字 则调用tushare的沪深数据接口
         new_df = ts.get_k_data(stock, start).set_index('date')  # tushare返回的是以数字作为索引 改成按日期索引
-    else:  # 若代码包含英文字符 则调用futu的接口
+
+        # 坑爹数据源 如果传入了start 就会获取不到今天的数据 解决方法：另外不传入start获取一次 再拼接最后一天的数据
+        new_df_without_start_param = ts.get_k_data(stock).set_index('date')
+
+        latest_date_new_df = new_df.index[-1]  # str
+        latest_date_new_df_without_start_param = new_df_without_start_param.index[-1]  # str
+        if latest_date_new_df != latest_date_new_df_without_start_param:
+            assert new_df.index[-1] == new_df_without_start_param.index[-2]  # 确认只少了最新的一天
+            latest_row = new_df_without_start_param.iloc[-1]
+            new_df = new_df.append(latest_row)
+    elif stock.startswith('HK.'):  # 若代码包含英文字符 则调用futu的接口
         quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
-        return_code, new_df, _ = quote_ctx.request_history_kline(stock)
+        return_code, new_df, _ = quote_ctx.request_history_kline(stock, start=start)
         assert return_code == 0, 'get data from futu error: %s' % new_df
+
         # 返回的日期格式为'yyyy-mm-dd 00:00:00' 把后面的去掉 与tushare返回的格式保持统一
         new_df['time_key'] = new_df['time_key'].apply(lambda s: s.split(' ')[0])
         new_df.set_index('time_key', inplace=True)  # 改成按日期索引
         quote_ctx.close()
+    elif stock.startswith('US.'):
+        now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
+        new_df = get_historical_data(
+            stock[3:],   # remove 'US.'
+            start=START_DOWNLOAD_DATE, end=now_date,
+            output_format='pandas', token=IEXFINANCE_TOKEN)
+
+        # 返回的日期格式为DatetimeIndex对象 转换为字符串
+        py_datetime_index = new_df.index.to_pydatetime()
+        datetime_to_str = np.vectorize(lambda s: s.strftime('%Y-%m-%d'))
+        date_only_array = datetime_to_str(py_datetime_index)
+        new_df.index = date_only_array
+    else:
+        raise RuntimeError('Unknown stock code: {}'.format(stock))
 
     global stocks
     stocks[stock] = pd.concat([stocks.get(stock), new_df])  # 注意原stocks[stock]可能为空 用concat合并数据
@@ -89,7 +127,7 @@ def get_data(stock: str) -> pd.DataFrame:
     if result is not None:
         return result
     else:
-        print('%s data does not exist, will download start from %s, may lack today\'s data due to bug' % (stock, START_DOWNLOAD_DATE))
+        # print('%s data does not exist, will download start from %s' % (stock, START_DOWNLOAD_DATE))
         return add_data(stock, START_DOWNLOAD_DATE)
 
 def add_column(stock, column, data) -> pd.DataFrame:
