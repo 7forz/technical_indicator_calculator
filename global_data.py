@@ -2,6 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 import configparser
+import logging
 import os
 import pickle
 import subprocess
@@ -10,7 +11,9 @@ import time
 import numpy as np
 import pandas as pd
 import tushare as ts  # reference: http://tushare.org/trading.html
-from iexfinance.stocks import get_historical_data
+import yfinance as yf
+
+logging.disable(30)  # 屏蔽futu OpenQuoteContext初始化时的log
 
 ROOT_DIR_PATH = os.path.split(os.path.realpath(__file__))[0]  # 保证是global_data.py所在的目录
 DB_FILE = ROOT_DIR_PATH + '/database.bin'
@@ -36,7 +39,6 @@ conf = configparser.ConfigParser()
 conf.read('config.ini')
 START_DECISION_DATE = conf['Config']['start_decision_date']
 START_DOWNLOAD_DATE = conf['Config']['start_download_date']
-IEXFINANCE_TOKEN = conf['Config']['iexfinance_token']
 
 # 是否启用futu的港股美股接口
 futu_enabled = conf['Config'].getboolean('futu_enabled')
@@ -55,7 +57,7 @@ if futu_enabled:
             [opend_path, '-login_account=%s' % login_account, '-login_pwd_md5=%s' % login_pwd_md5, '-log_level=warning']
         )
         print('Wait for FutuOpenD connection..')
-        time.sleep(5)
+        time.sleep(10)
     # 等待daemon启动完成后 下载港股和美股的F10数据
     quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
     print('Getting basic F10 info for HK..')
@@ -93,7 +95,8 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
             new_df = new_df.append(latest_row)
     elif stock.startswith('HK.'):  # 若代码包含英文字符 则调用futu的接口
         quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
-        return_code, new_df, _ = quote_ctx.request_history_kline(stock, start=start)
+        now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准
+        return_code, new_df, _ = quote_ctx.request_history_kline(stock, start=start, end=now_date)
         assert return_code == 0, 'get data from futu error: %s' % new_df
 
         # 返回的日期格式为'yyyy-mm-dd 00:00:00' 把后面的去掉 与tushare返回的格式保持统一
@@ -102,10 +105,9 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
         quote_ctx.close()
     elif stock.startswith('US.'):
         now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
-        new_df = get_historical_data(
-            stock[3:],   # remove 'US.'
-            start=START_DOWNLOAD_DATE, end=now_date,
-            output_format='pandas', token=IEXFINANCE_TOKEN)
+        ticker = yf.Ticker(stock[3:])  # remove 'US.'
+        new_df = ticker.history(start=START_DOWNLOAD_DATE)
+        new_df.columns = ['open', 'high', 'low', 'close', 'volume', 'Dividends', 'Stock Splits']  # 改为小写以统一
 
         # 返回的日期格式为DatetimeIndex对象 转换为字符串
         py_datetime_index = new_df.index.to_pydatetime()
