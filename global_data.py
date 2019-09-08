@@ -95,7 +95,7 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
             new_df = new_df.append(latest_row)
     elif stock.startswith('HK.'):  # 若代码包含英文字符 则调用futu的接口
         quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
-        now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准
+        now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
         return_code, new_df, _ = quote_ctx.request_history_kline(stock, start=start, end=now_date)
         assert return_code == 0, 'get data from futu error: %s' % new_df
 
@@ -104,7 +104,6 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
         new_df.set_index('time_key', inplace=True)  # 改成按日期索引
         quote_ctx.close()
     elif stock.startswith('US.'):
-        now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
         ticker = yf.Ticker(stock[3:])  # remove 'US.'
         new_df = ticker.history(start=START_DOWNLOAD_DATE)
         new_df.columns = ['open', 'high', 'low', 'close', 'volume', 'Dividends', 'Stock Splits']  # 改为小写以统一
@@ -147,9 +146,9 @@ def get_name(stock: str) -> str:
     """ 获取对应代码的中文名称 """
     if stock.isdigit() and stock in BASIC_INFO['CN'].index:  # 有些ETF基金会没有F10数据
         return BASIC_INFO['CN'].loc[stock]['name']
-    elif stock.startswith('HK'):
+    elif stock.startswith('HK') and stock in BASIC_INFO['HK'].index:
         return BASIC_INFO['HK'].loc[stock]['name']
-    elif stock.startswith('US'):
+    elif stock.startswith('US') and stock in BASIC_INFO['US'].index:
         return BASIC_INFO['US'].loc[stock]['name']
     else:
         return ''
