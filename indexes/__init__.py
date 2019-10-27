@@ -7,3 +7,4 @@ from indexes.rsi import RSI
 from indexes.kdj import KDJ
 from indexes.mtm import MTM
 from indexes.cci import CCI
+from indexes.dmi import DMI

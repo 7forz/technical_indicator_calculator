@@ -23,7 +23,7 @@ class Index():
         """ 计算指数移动平均线 传入一个array和int 返回一个array """
         if isinstance(array, pd.Series):
             array = array.to_numpy()
-        ma_array = calc_ma(array, days)
+        ma_array = calc_ema(array, days)
         return ma_array
 
     def sma(self, array:np.ndarray, n:int, m:int) -> np.ndarray:
@@ -133,4 +133,24 @@ def calc_avedev(array:np.ndarray, n:int):
             _sum += abs(array[i-j] - ma[i])  # i-n ~ i-1
         _sum /= n
         _result[i] = _sum
+    return np.array(_result)
+
+@numba.jit(nopython=True)
+def sum_recent(array:np.ndarray, n:int) -> np.ndarray:
+    """ 最近n日的求和 """
+    assert len(array) > n
+
+    _result = [np.nan] * len(array)
+    for i in range(n-1, len(array)):  # 前(n-1)个无数据
+        _result[i] = np.sum(array[i-n+1:i+1])
+    return np.array(_result)
+
+@numba.jit(nopython=True)
+def ref(array:np.ndarray, n:int) -> np.ndarray:
+    """ 前n日的值 相当于时间平移  [1, 2, 3] -> [NaN, 1, 2]"""
+    assert len(array) > n
+
+    _result = [np.nan] * len(array)
+    for i in range(n, len(array)):  # 前(n-1)个无数据
+        _result[i] = array[i-n]
     return np.array(_result)
