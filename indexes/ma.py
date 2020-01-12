@@ -26,7 +26,7 @@ class MA(Index):
                 raise RuntimeError
         except (KeyError, RuntimeError):
             # 没有所需的MA数据
-            closes = data['close']
+            closes = data['close'].to_numpy()
 
         # 计算MA
         if len(closes) > days:  # 避免只有50天数据却计算了MA90的问题 否则求卷积后提取时会有问题

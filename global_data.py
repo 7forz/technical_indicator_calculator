@@ -146,9 +146,9 @@ def get_name(stock: str) -> str:
     """ 获取对应代码的中文名称 """
     if stock.isdigit() and stock in BASIC_INFO['CN'].index:  # 有些ETF基金会没有F10数据
         return BASIC_INFO['CN'].loc[stock]['name']
-    elif stock.startswith('HK') and stock in BASIC_INFO['HK'].index:
+    elif stock.startswith('HK') and 'HK' in BASIC_INFO and stock in BASIC_INFO['HK'].index:
         return BASIC_INFO['HK'].loc[stock]['name']
-    elif stock.startswith('US') and stock in BASIC_INFO['US'].index:
+    elif stock.startswith('US') and 'US' in BASIC_INFO and stock in BASIC_INFO['US'].index:
         return BASIC_INFO['US'].loc[stock]['name']
     else:
         return ''

@@ -3,8 +3,9 @@
 
 import numpy as np
 import pandas as pd
-from indexes.base import Index
+
 import global_data
+from indexes.base import Index, ref
 
 
 class MTM(Index):
@@ -20,12 +21,10 @@ class MTM(Index):
     def get_mtm(self, date, n=12, m=6):
         """ 获取给定日期的 MTM(n, m) 假定已有最新的K线数据 计算出来后由于可能性多 不填入数据库 """
         data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
-        closes = data['close']
+        closes = data['close'].to_numpy()
 
         # DELTA:CLOSE-REF(CLOSE,N)
-        # 前n日的收盘价 相当于closes这个series左移了n天 长度少了n所以在开头补上n个初始值0
-        ref = np.concatenate((np.array([0]*n), closes[:-n]))
-        delta = closes - ref
+        delta = closes - ref(closes, n)
 
         # MTMMA:MA(DELTA,M)
         mtm = pd.Series(self.ma(delta, m), index=data.index)  # 转换为series

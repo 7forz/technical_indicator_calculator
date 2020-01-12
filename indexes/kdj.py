@@ -27,9 +27,9 @@ class KDJ(Index):
         data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
         assert data is not None, 'must have K-data before using get_kdj()!'
 
-        closes = data['close']
-        highs = data['high']
-        lows = data['low']
+        closes = data['close'].to_numpy()
+        highs = data['high'].to_numpy()
+        lows = data['low'].to_numpy()
 
         # 数据库存在分2种情况 1.已经算出来给定日期的LLV+HHV 2.没有给定日期的  注意K线数据是最新的
         # 情况1: 直接提取   情况2: 算出最新的EMA数据

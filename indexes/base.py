@@ -14,43 +14,31 @@ class Index():
 
     def ma(self, array:np.ndarray, days:int) -> np.ndarray:
         """ 计算简单移动平均线 传入一个array和days 返回一个array """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         ma_array = calc_ma(array, days)
         return ma_array
 
     def ema(self, array:np.ndarray, days:int) -> np.ndarray:
         """ 计算指数移动平均线 传入一个array和int 返回一个array """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         ma_array = calc_ema(array, days)
         return ma_array
 
     def sma(self, array:np.ndarray, n:int, m:int) -> np.ndarray:
         """ 计算array的n日移动平均 m为权重  ema相当于sma(x,n+1,2) """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         sma_array = calc_sma(array, n, m)
         return sma_array
 
     def llv(self, array:np.ndarray, n:int) -> np.ndarray:
         """ n日内最低价的最低值 从数据的第一天开始往后计算 """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         llv_array = calc_llv(array, n)
         return llv_array
 
     def hhv(self, array:np.ndarray, n:int) -> np.ndarray:
         """ n日内最高价的最高值 """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         hhv_array = calc_hhv(array, n)
         return hhv_array
 
     def avedev(self, array, n):
         """ 平均绝对误差 一定区间内的值与该区间MA的差的绝对值之平均 """
-        if isinstance(array, pd.Series):
-            array = array.to_numpy()
         avedev_array = calc_avedev(array, n)
         return avedev_array
 
@@ -63,7 +51,7 @@ class Index():
         pass
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_ma(array:np.ndarray, days:int) -> np.ndarray:
     """ 计算简单移动平均线 传入一个array和days 返回一个array """
     _weights = np.ones(days) / days  # 权重相等
@@ -72,11 +60,11 @@ def calc_ma(array:np.ndarray, days:int) -> np.ndarray:
     assert len(array) == len(ma)
     return ma
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_ema(array:np.ndarray, days:int) -> np.ndarray:
     """ 计算指数移动平均线 传入一个array和int 返回一个array """
     _result = [0.0] * len(array)
-    _result[0] = array[0]  # result初始值定为array的初值
+    _result[0] = 0.0 if np.isnan(array[0]) else array[0] # result初始值定为array的初值
     for i in range(1, len(array)):  # 后面的进行递归计算
         # EMA(N) = 前一日EMA(N) X (N-1)/(N+1) + 今日收盘价 X 2/(N+1)
         # e.g.
@@ -84,11 +72,11 @@ def calc_ema(array:np.ndarray, days:int) -> np.ndarray:
         _result[i] = _result[i-1] * (days-1) / (days+1) + array[i] * 2 / (days+1)
     return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_sma(array:np.ndarray, n:int, m:int) -> np.ndarray:
     """ 计算array的n日移动平均 m为权重  ema相当于sma(x,n+1,2) """
     _result = [0.0] * len(array)
-    _result[0] = array[0]  # result初始值定为array的初值
+    _result[0] = 0.0 if np.isnan(array[0]) else array[0] # result初始值定为array的初值
     for i in range(1, len(array)):  # 后面的进行递归计算
         # SMA(N,M) = 前一日SMA(N) X (N-M)/N + 今日收盘价 X M/N
         # e.g.
@@ -96,7 +84,7 @@ def calc_sma(array:np.ndarray, n:int, m:int) -> np.ndarray:
         _result[i] = _result[i-1] * (n-m) / n + array[i] * m / n
     return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_llv(array:np.ndarray, n:int) -> np.ndarray:
     """ n日内最低价的最低值 从数据的第一天开始往后计算 """
     assert n > 1, 'n应>=2'
@@ -108,7 +96,7 @@ def calc_llv(array:np.ndarray, n:int) -> np.ndarray:
             _result.append(min(array[:i+1]))
     return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_hhv(array:np.ndarray, n:int) -> np.ndarray:
     """ n日内最高价的最高值 """
     assert n > 1, 'n应>=2'
@@ -120,7 +108,7 @@ def calc_hhv(array:np.ndarray, n:int) -> np.ndarray:
             _result.append(max(array[:i+1]))
     return np.array(_result)  # 返回一个np.array而不是list对象 list对象不能运算
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_avedev(array:np.ndarray, n:int):
     """ 平均绝对误差 一定区间内的值与该区间MA的差的绝对值之平均 """
     assert len(array) > n
@@ -135,7 +123,7 @@ def calc_avedev(array:np.ndarray, n:int):
         _result[i] = _sum
     return np.array(_result)
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def sum_recent(array:np.ndarray, n:int) -> np.ndarray:
     """ 最近n日的求和 """
     assert len(array) > n
@@ -145,7 +133,7 @@ def sum_recent(array:np.ndarray, n:int) -> np.ndarray:
         _result[i] = np.sum(array[i-n+1:i+1])
     return np.array(_result)
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def ref(array:np.ndarray, n:int) -> np.ndarray:
     """ 前n日的值 相当于时间平移  [1, 2, 3] -> [NaN, 1, 2]"""
     assert len(array) > n

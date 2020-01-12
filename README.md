@@ -7,5 +7,7 @@
 * Python 3 (3.7+ recommeded)
 * numpy 1.11.2+
 * pandas 0.19.2+
+* matplotlib
 * tushare 0.8.2+
+* yfinance (for US market)
 * numba (tested with 0.45)

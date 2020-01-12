@@ -38,7 +38,9 @@ class DMI(Index):
 
         mtr = calc_mtr(high, low, close, n)
         hd = high - ref(high, 1)
+        hd[np.isnan(hd)] = 0
         ld = ref(low, 1) - low
+        ld[np.isnan(ld)] = 0
 
         dmp = sum_recent(np.where(np.logical_and(hd>0, hd>ld), hd, 0), n)
         dmm = sum_recent(np.where(np.logical_and(ld>0, ld>hd), ld, 0), n)
@@ -57,7 +59,7 @@ class DMI(Index):
             return pdi[-1], mdi[-1]  # 尝试返回最近的数据
 
 
-@numba.jit(nopython=True)
+@numba.jit(nopython=True, cache=True)
 def calc_mtr(high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int):
     """
     SUM( MAX( MAX(HIGH - LOW, ABS(HIGH - REF(CLOSE, 1)) ), ABS(REF(CLOSE, 1) - LOW) ), N)

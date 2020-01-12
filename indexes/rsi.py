@@ -2,8 +2,9 @@
 # -*- encoding: utf-8 -*-
 
 import numpy as np
-from indexes.base import Index
+
 import global_data
+from indexes.base import Index, ref
 
 
 class RSI(Index):
@@ -23,26 +24,24 @@ class RSI(Index):
         # 数据库存在分2种情况 有当天K线数据且已经算出来 有K线但NaN
         # 尝试从已有数据读取 读取成功马上返回
         try:
-            result = data.loc[date, 'rsi%s' % n]  # 若没有K线数据会抛出KeyError
+            result = data.loc[date, f'rsi{n}']  # 若没有K线数据会抛出KeyError
             if str(result) != 'nan':  # 有K线但NaN result不是简单的np.nan
                 return result
             else:
                 raise RuntimeError
         except (KeyError, RuntimeError):
-            # 没有数据
-            closes = data['close']
+            # 没有RSI数据 需从收盘价计算
+            closes = data['close'].to_numpy()
 
         # LC:=REF(CLOSE,1);
-        # 前1日的收盘价 相当于closes这个series左移了1天 长度少了1所以在开头补上初始值0
-        lc = np.concatenate((np.array([0]), closes[:-1]))
+        lc = ref(closes, 1)
 
         # RSI:SMA(MAX(CLOSE-LC,0),N1,1)/SMA(ABS(CLOSE-LC),N1,1)*100;
-        gt_0 = np.vectorize(lambda x: x if x > 0 else 0)  # MAX(CLOSE-LC,0)
-        rsi = self.sma(gt_0(closes-lc), n, 1) / self.sma(np.abs(closes-lc), n, 1) * 100
+        rsi = self.sma(np.maximum(closes-lc, 0), n, 1) / (self.sma(np.abs(closes-lc), n, 1) + 1e-6) * 100  # 避免0÷0
 
-        new_data = global_data.add_column(self.stock, 'rsi%s' % n, rsi)  # 计算出来后填入总表
+        new_data = global_data.add_column(self.stock, f'rsi{n}', rsi)  # 计算出来后填入总表
 
         try:
-            return new_data.loc[date, 'rsi%s' % n]  # 最终返回对应日期的RSI值
+            return new_data.loc[date, f'rsi{n}']  # 最终返回对应日期的RSI值
         except KeyError:  # 该日停牌 返回nan
             return np.nan
