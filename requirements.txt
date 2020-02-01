@@ -12,7 +12,6 @@ multitasking
 numba==0.47.0
 numpy
 pandas
-pkg-resources
 pyparsing
 python-dateutil
 pytz

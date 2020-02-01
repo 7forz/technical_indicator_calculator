@@ -19,8 +19,8 @@ class Index():
 
     def ema(self, array:np.ndarray, days:int) -> np.ndarray:
         """ 计算指数移动平均线 传入一个array和int 返回一个array """
-        ma_array = calc_ema(array, days)
-        return ma_array
+        ema_array = calc_ema(array, days)
+        return ema_array
 
     def sma(self, array:np.ndarray, n:int, m:int) -> np.ndarray:
         """ 计算array的n日移动平均 m为权重  ema相当于sma(x,n+1,2) """

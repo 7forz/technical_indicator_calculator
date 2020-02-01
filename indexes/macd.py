@@ -36,7 +36,7 @@ class MACD(Index):
 
         # 获取EMA(CLOSE,SHORT)
         try:
-            ema_short = data[f'ema{short}']  # 若没有EMA(N)数据会抛出KeyError
+            ema_short = data[f'ema{short}'].to_numpy()  # 若没有EMA(N)数据会抛出KeyError
             if str(ema_short[date_index]) == 'nan':
                 raise RuntimeError
         except (KeyError, RuntimeError, IndexError):
@@ -46,7 +46,7 @@ class MACD(Index):
 
         # 获取EMA(CLOSE,LONG)
         try:
-            ema_long = data[f'ema{long}']  # 若没有EMA(N)数据会抛出KeyError
+            ema_long = data[f'ema{long}'].to_numpy()  # 若没有EMA(N)数据会抛出KeyError
             if str(ema_long[date_index]) == 'nan':
                 raise RuntimeError
         except (KeyError, RuntimeError, IndexError):

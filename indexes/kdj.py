@@ -40,7 +40,7 @@ class KDJ(Index):
 
         # 获取LLV(N)
         try:
-            llvs = data['llv%s' % n]  # 若没有LLV(N)数据会抛出KeyError
+            llvs = data[f'llv{n}'].to_numpy()  # 若没有LLV(N)数据会抛出KeyError
             if str(llvs[date_index]) == 'nan':
                 raise RuntimeError
         except (KeyError, RuntimeError, IndexError):
@@ -50,7 +50,7 @@ class KDJ(Index):
 
         # 获取HHV(N)
         try:
-            hhvs = data['hhv%s' % n]  # 若没有HHV(N)数据会抛出KeyError
+            hhvs = data[f'hhv{n}'].to_numpy()  # 若没有HHV(N)数据会抛出KeyError
             if str(hhvs[date_index]) == 'nan':
                 raise RuntimeError
         except (KeyError, RuntimeError, IndexError):
