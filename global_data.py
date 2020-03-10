@@ -8,8 +8,10 @@ import pickle
 import subprocess
 import time
 
+import futu
 import numpy as np
 import pandas as pd
+import psutil
 import tushare as ts  # reference: http://tushare.org/trading.html
 import yfinance as yf
 
@@ -43,18 +45,23 @@ START_DOWNLOAD_DATE = conf['Config']['start_download_date']
 # 是否启用futu的港股美股接口
 futu_enabled = conf['Config'].getboolean('futu_enabled')
 if futu_enabled:
-    import futu
     opend_path = conf['Config']['futu_opend_path']
     login_account = conf['Config']['futu_login_account']
     login_pwd_md5 = conf['Config']['futu_login_pwd_md5']
 
     opend_basename = os.path.basename(opend_path)  # FutuOpenD.exe
-    # 若没有运行futu daemon 则启动 这里只做了Windows系统的适配 否则会报错
-    task_status = subprocess.run(['tasklist', '/FI', 'IMAGENAME eq %s' % opend_basename],
-                                 capture_output=True, check=True).stdout
-    if opend_basename.encode() not in task_status:  # task_status是bytes opend_basename是str
+    pids = psutil.pids()
+    while True:
+        try:
+            process_names = set(psutil.Process(pid).name() for pid in pids)
+        except psutil.NoSuchProcess:
+            time.sleep(1)
+        else:
+            break
+
+    if opend_basename not in process_names:
         subprocess.Popen(
-            [opend_path, '-login_account=%s' % login_account, '-login_pwd_md5=%s' % login_pwd_md5, '-log_level=warning']
+            [opend_path, f'-login_account={login_account}', f'-login_pwd_md5={login_pwd_md5}', '-log_level=warning']
         )
         print('Wait for FutuOpenD connection..')
         time.sleep(10)

@@ -3,6 +3,7 @@ bs4
 certifi
 chardet
 cycler
+futu-api
 idna
 kiwisolver
 llvmlite
@@ -12,6 +13,7 @@ multitasking
 numba==0.47.0
 numpy
 pandas
+psutil
 pyparsing
 python-dateutil
 pytz
