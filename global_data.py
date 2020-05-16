@@ -79,7 +79,7 @@ if futu_enabled:
     quote_ctx.close()
 
 
-def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  2019-01-01
+def add_data(stock: str, start: str) -> pd.DataFrame:  # 格式:1月必须写作01  2019-01-01
     """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
         并返回该股票的数据
 
@@ -100,6 +100,13 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
             assert new_df.index[-1] == new_df_without_start_param.index[-2]  # 确认只少了最新的一天
             latest_row = new_df_without_start_param.iloc[-1]
             new_df = new_df.append(latest_row)
+    elif stock.endswith('.SH') or stock.endswith('.SZ'):  # .SH .SZ 结尾 则调用tushare pro   需要先设置其token
+        start_yyyymmdd = start.replace('-', '')
+        new_df: pd.DataFrame = ts.pro_bar(ts_code=stock, adj='qfq', start_date=start_yyyymmdd)
+        new_df.rename(columns={'vol': 'volume'}, inplace=True)
+        new_df.sort_values(by='trade_date', inplace=True)
+        new_df['trade_date'] = new_df['trade_date'].apply(lambda s: f'{s[:4]}-{s[4:6]}-{s[6:8]}')
+        new_df.set_index('trade_date', inplace=True)  # 改成按日期索引
     elif stock.startswith('HK.'):  # 若代码包含英文字符 则调用futu的接口
         quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
         now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
@@ -112,7 +119,7 @@ def add_data(stock, start='') -> pd.DataFrame:  # 格式:1月必须写作01  201
         quote_ctx.close()
     elif stock.startswith('US.'):
         ticker = yf.Ticker(stock[3:])  # remove 'US.'
-        new_df = ticker.history(start=START_DOWNLOAD_DATE)
+        new_df = ticker.history(start=start)
         new_df.columns = ['open', 'high', 'low', 'close', 'volume', 'Dividends', 'Stock Splits']  # 改为小写以统一
 
         # 返回的日期格式为DatetimeIndex对象 转换为字符串
