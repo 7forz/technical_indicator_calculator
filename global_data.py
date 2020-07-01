@@ -26,13 +26,18 @@ if os.path.exists(DB_FILE):
 else:
     stocks = {}
 
-# 最新的交易日 即上证指数最近的日期
-NEWEST_TRADE_DATE = ts.get_k_data('000001', index=True)['date'].iloc[-1]
+# 获取最新交易日的日期
+trade_calendar = ts.pro_api().trade_cal(end_date=time.strftime('%Y%m%d'))
+NEWEST_TRADE_DATE = trade_calendar[trade_calendar['is_open'] == 1].iloc[-1]['cal_date']  # '20200101'
+NEWEST_TRADE_DATE = f'{NEWEST_TRADE_DATE[:4]}-{NEWEST_TRADE_DATE[4:6]}-{NEWEST_TRADE_DATE[-2:]}'  # '2020-01-01'
+
 # 获取所有F10数据 例如中文名称等
 BASIC_INFO = {}
 try:
     print('Getting basic F10 info for CN..')
-    BASIC_INFO['CN'] = ts.get_stock_basics()
+    stock_basic = ts.pro_api().stock_basic()
+    stock_basic['ts_code'] = stock_basic['ts_code'].apply(lambda s: s[:-3])
+    BASIC_INFO['CN'] = stock_basic.set_index('ts_code')
 except:
     BASIC_INFO['CN'] = pd.DataFrame()
     print('Warning: Get stock F10 info from tushare failed')
@@ -104,14 +109,15 @@ def get_data_from_tushare_pro(stock: str, start: str) -> pd.DataFrame:
 
 def get_data_from_futu_opend(stock: str, start: str) -> pd.DataFrame:
     quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
-    now_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
-    return_code, df, _ = quote_ctx.request_history_kline(stock, start=start, end=now_date)
+    today_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
+    return_code, df, _ = quote_ctx.request_history_kline(stock, start=start, end=today_date)
     assert return_code == 0, f'get data from futu error: {df}'
 
     # 返回的日期格式为'yyyy-mm-dd 00:00:00' 把后面的去掉 与tushare返回的格式保持统一
     df['time_key'] = df['time_key'].apply(lambda s: s.split(' ')[0])
     df.set_index('time_key', inplace=True)  # 改成按日期索引
     quote_ctx.close()
+    time.sleep(0.5)
     return df
 
 def get_data_from_yfinance(stock: str, start: str) -> pd.DataFrame:
