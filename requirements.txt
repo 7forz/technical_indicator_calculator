@@ -10,7 +10,7 @@ llvmlite
 lxml
 matplotlib
 multitasking
-numba==0.47.0
+numba
 numpy
 pandas
 psutil
