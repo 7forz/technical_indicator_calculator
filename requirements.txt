@@ -13,7 +13,6 @@ multitasking
 numba
 numpy
 pandas
-psutil
 pyparsing
 python-dateutil
 pytz
@@ -23,3 +22,5 @@ soupsieve
 tushare
 urllib3
 yfinance
+celery[redis]
+sentry-sdk

@@ -5,20 +5,18 @@ import configparser
 import logging
 import os
 import pickle
-import subprocess
+import socket
 import time
 
 import futu
-import numpy as np
 import pandas as pd
-import psutil
 import tushare as ts  # reference: http://tushare.org/trading.html
 import yfinance as yf
 
 logging.disable(30)  # 屏蔽futu OpenQuoteContext初始化时的log
 
 ROOT_DIR_PATH = os.path.split(os.path.realpath(__file__))[0]  # 保证是global_data.py所在的目录
-DB_FILE = ROOT_DIR_PATH + '/database.bin'
+DB_FILE = os.path.join(ROOT_DIR_PATH, 'database.bin')
 if os.path.exists(DB_FILE):
     print('WILL READ FROM SAVED DATABASE FILE!')
     with open(DB_FILE, 'rb') as f:
@@ -49,29 +47,16 @@ START_DOWNLOAD_DATE = conf['Config']['start_download_date']
 
 # 是否启用futu的港股美股接口
 futu_enabled = conf['Config'].getboolean('futu_enabled')
+futu_host = conf['Config']['futu_hostname'] if futu_enabled else None
 if futu_enabled:
-    opend_path = conf['Config']['futu_opend_path']
-    login_account = conf['Config']['futu_login_account']
-    login_pwd_md5 = conf['Config']['futu_login_pwd_md5']
+    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        test_socket.connect((futu_host, 11111))
+        test_socket.close()
+    except socket.error as e:
+        raise RuntimeError(f'{futu_host}:11111 connect failed') from e
 
-    opend_basename = os.path.basename(opend_path)  # FutuOpenD.exe
-    pids = psutil.pids()
-    while True:
-        try:
-            process_names = set(psutil.Process(pid).name() for pid in pids)
-        except psutil.NoSuchProcess:
-            time.sleep(1)
-        else:
-            break
-
-    if opend_basename not in process_names:
-        subprocess.Popen(
-            [opend_path, f'-login_account={login_account}', f'-login_pwd_md5={login_pwd_md5}', '-log_level=warning']
-        )
-        print('Wait for FutuOpenD connection..')
-        time.sleep(10)
-    # 等待daemon启动完成后 下载港股和美股的F10数据
-    quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
+    quote_ctx = futu.OpenQuoteContext(host=futu_host, port=11111)
     print('Getting basic F10 info for HK..')
     return_code, data_df = quote_ctx.get_stock_basicinfo(futu.Market.HK, stock_type=futu.SecurityType.STOCK)
     assert return_code == 0, f'get data from futu error: {data_df}'
@@ -108,28 +93,37 @@ def get_data_from_tushare_pro(stock: str, start: str) -> pd.DataFrame:
     return df
 
 def get_data_from_futu_opend(stock: str, start: str) -> pd.DataFrame:
-    quote_ctx = futu.OpenQuoteContext(host='127.0.0.1', port=11111)
+    quote_ctx = futu.OpenQuoteContext(host=futu_host, port=11111)
     today_date = time.strftime('%Y-%m-%d')  # 以现在时间为准 NEWEST_TRADE_DATE只适用于中国市场
     return_code, df, _ = quote_ctx.request_history_kline(stock, start=start, end=today_date)
-    assert return_code == 0, f'get data from futu error: {df}'
+    if return_code != 0:  # 最多重试一次
+        time.sleep(1)
+        return_code, df, _ = quote_ctx.request_history_kline(stock, start=start, end=today_date)
+    if return_code != 0:
+        quote_ctx.close()  # 使线程退出 不阻塞主进程
+        raise RuntimeError(f'get data from futu error: {df}')
 
     # 返回的日期格式为'yyyy-mm-dd 00:00:00' 把后面的去掉 与tushare返回的格式保持统一
     df['time_key'] = df['time_key'].apply(lambda s: s.split(' ')[0])
     df.set_index('time_key', inplace=True)  # 改成按日期索引
     quote_ctx.close()
-    time.sleep(0.5)
+    time.sleep(1)
     return df
 
 def get_data_from_yfinance(stock: str, start: str) -> pd.DataFrame:
     ticker = yf.Ticker(stock[3:])  # remove 'US.'
-    df = ticker.history(start=start)
+    try:
+        df = ticker.history(start=start)
+    except:
+        time.sleep(1)
+        df = ticker.history(start=start)
     df.columns = ['open', 'high', 'low', 'close', 'volume', 'Dividends', 'Stock Splits']  # 改为小写以统一
 
     # 返回的日期格式为DatetimeIndex对象 转换为字符串
     py_datetime_index = df.index.to_pydatetime()
-    datetime_to_str = np.vectorize(lambda s: s.strftime('%Y-%m-%d'))
-    date_only_array = datetime_to_str(py_datetime_index)
-    df.index = date_only_array
+    date_list = list(map(lambda x: x.strftime('%Y-%m-%d'), py_datetime_index))
+    df.index = date_list
+    time.sleep(0.1)
     return df
 
 
@@ -176,7 +170,7 @@ def add_column(stock, column, data) -> pd.DataFrame:
 def save_database(filename=DB_FILE):
     """ 保存当前数据到文件中 """
     with open(filename, 'wb') as f:
-        pickle.dump(stocks, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(stocks, f)
 
 def get_name(stock: str) -> str:
     """ 获取对应代码的中文名称 """

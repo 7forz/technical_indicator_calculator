@@ -58,7 +58,7 @@ class KDJ(Index):
             hhvs = self.hhv(highs, n)
             global_data.add_column(self.stock, 'hhv%s' % n, hhvs)  # 计算完毕 保存值到总表
 
-        rsv = (closes - llvs) / (hhvs - llvs) * 100
+        rsv = (closes - llvs) / (hhvs - llvs + 0.00000001) * 100  # 避免除以0
         if str(rsv[0]) == 'nan':  # 若第一天停牌 则hhv-llv等于0 相除之后会变成nan 导致之后的计算全部错误
             rsv[0] = 0
 
