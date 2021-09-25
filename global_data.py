@@ -2,6 +2,7 @@
 # -*- encoding: utf-8 -*-
 
 import configparser
+import datetime
 import logging
 import os
 import pickle
@@ -10,6 +11,7 @@ import time
 
 import futu
 import pandas as pd
+import requests
 import tushare as ts  # reference: http://tushare.org/trading.html
 import yfinance as yf
 
@@ -126,6 +128,44 @@ def get_data_from_yfinance(stock: str, start: str) -> pd.DataFrame:
     time.sleep(0.1)
     return df
 
+def get_data_from_longbridge(stock: str, start: str) -> pd.DataFrame:
+    """ 传入的stock以`LB-`开头，例如`LB-HK.00700` """
+    assert stock.startswith('LB-'), f'should start with "LB-", but got {stock}'
+    region, code = stock.replace('LB-', '', 1).split('.')
+    if region == 'HK':
+        code = code.lstrip('0')
+    symbol = f'ST/{region}/{code}'  # e.g ST/HK/700  不过固定ST开头也不对的，也有ETF开头
+
+    today_date = datetime.date.today()
+    start_date = datetime.date.fromisoformat(start)
+    days_num = (today_date - start_date).days  # 大概计算需要请求多少天的K线，懒得算上交易日
+
+    params = {'line_num': days_num, 'line_type': 1000, 'counter_id': symbol, 'adjust_type': 1}
+    headers = {'authority': 'm.lbkrs.com', 'x-application-version': 'master', 'accept-language': 'zh-CN',
+               'sec-ch-ua-mobile': '?0', 'x-platform': 'web', 'accept': 'application/json, text/plain',
+               'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.82 Safari/537.36',
+               'x-bridge-token': 'none', 'sec-ch-ua-platform': '"Windows"', 'origin': 'https://longbridgeapp.com',
+               'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', 'referer': 'https://longbridgeapp.com/'}
+    r = requests.get('https://m.lbkrs.com/api/forward/v2/quote/kline', params=params, headers=headers)
+    assert r.status_code == 200, f'http get {symbol} data error: {r.status_code}'
+
+    data_dict = r.json()
+    assert data_dict['code'] == 0, f'error code = {data_dict["code"]}, error msg = {data_dict["message"]}'
+    data_list = data_dict['data']['klines']
+    assert data_list, f'data list is empty'
+    df = pd.DataFrame(data_list, dtype=float)
+    df.rename(columns={'amount': 'volume'}, inplace=True)  # 成交量，手
+    datetimes = list(map(datetime.date.fromtimestamp, df['timestamp']))
+    df['date'] = list(map(lambda d: d.isoformat(), datetimes))  # python的map好像不能链式做..
+    df.set_index('date', inplace=True)
+
+    # 不知道这个factor_b是什么，但是加上就准了（测了几只股票）
+    df['open'] += df['factor_b']
+    df['high'] += df['factor_b']
+    df['low'] += df['factor_b']
+    df['close'] += df['factor_b']
+
+    return df.loc[start:]
 
 def add_data(stock: str, start: str) -> pd.DataFrame:  # 格式:1月必须写作01  2019-01-01
     """ 添加对应股票的从给定日期开始的全部K线数据到全局变量stocks
@@ -144,6 +184,8 @@ def add_data(stock: str, start: str) -> pd.DataFrame:  # 格式:1月必须写作
         df = get_data_from_futu_opend(stock, start)
     elif stock.startswith('US.'):
         df = get_data_from_yfinance(stock, start)
+    elif stock.startswith('LB-'):
+        df = get_data_from_longbridge(stock, start)
     else:
         raise RuntimeError('Unknown stock code: {}'.format(stock))
 
