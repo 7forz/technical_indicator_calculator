@@ -2,39 +2,37 @@
 # -*- encoding: utf-8 -*-
 
 import numpy as np
-from indexes.base import Index
-import global_data
+from dto_enum import OHLCV
+from global_data import global_data_instance
+
+from indexes import Index
 
 
 class MA(Index):
     """ 简单移动平均线 """
 
-    def __init__(self, stock):
-        super().__init__(stock)
+    def get_ma(self, symbol: str, date: str, n: int) -> float:
+        """ 计算所有日期的 N日均线 的序列（若有缓存则无需计算），返回给定日期的 N日均线 的值 """
 
-    def get_ma(self, date, days=5):
-        """ 获取给定日期的 days日均线 """
-        data = global_data.get_data(self.stock)
+        key = f'ma-{n}'
+        if self.computed_memo.contains(symbol, key):  # 已有计算
+            if len(self.computed_memo.get(symbol, key)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                if date in global_data_instance.symbol_to_date_set[symbol]:
+                    offset = global_data_instance.find_date_offset(symbol, date)
+                    return self.computed_memo.get(symbol, key)[offset]
+                else:
+                    return np.nan
 
-        # 数据库存在分2种情况 有当天K线数据且已经算出来 有K线但NaN
-        # 尝试从已有数据读取 读取成功马上返回
-        try:
-            result = data[f'ma{days}'].loc[date]  # 若没有给定日期的K线数据会抛出KeyError
-            if str(result) != 'nan':  # 有K线但NaN result不是简单的np.nan
-                return result
-            else:
-                raise RuntimeError
-        except (KeyError, RuntimeError):
-            # 没有所需的MA数据
-            closes = data['close'].to_numpy()
+        close_array = global_data_instance.get_array_since_date(symbol, OHLCV.CLOSE, global_data_instance.START_DOWNLOAD_DATE)
 
         # 计算MA
-        if len(closes) > days:  # 避免只有50天数据却计算了MA90的问题 否则求卷积后提取时会有问题
-            ma_array = self.ma(closes, days)
-            new_data = global_data.add_column(self.stock, 'ma%s' % days, ma_array)  # 计算出来后填入总表
-            try:
-                return new_data[f'ma{days}'].loc[date]  # 最终返回对应日期的MA值
-            except KeyError:  # 该日停牌 返回nan
-                return np.nan
+        if len(close_array) > n:  # 避免只有50天数据却计算了MA90的问题 否则求卷积后提取时会有问题
+            ma_array = self.ma(close_array, n)
+            self.computed_memo.set(symbol, key, ma_array)  # 计算出来后填入缓存
+
+            offset = global_data_instance.find_date_offset(symbol, date)
+            return ma_array[offset]
         else:
             return np.nan
+
+ma_instance = MA()

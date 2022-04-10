@@ -2,9 +2,11 @@
 # -*- encoding: utf-8 -*-
 
 import numpy as np
-import pandas as pd
+from dto_enum import OHLCV
+from global_data import global_data_instance
+
+from indexes import Index
 from indexes.base import Index
-import global_data
 
 
 class KDJ(Index):
@@ -15,62 +17,60 @@ class KDJ(Index):
         K:SMA(RSV,M1,1);
         D:SMA(K,M2,1);
         J:3*K-2*D;
-        共3个参数：n m1 m2 但通达信中m1=m2 所以暂定为2个参数
+        共3个参数: n m1 m2 但通达信中m1=m2 所以暂定为2个参数
         n>m
     """
 
-    def __init__(self, stock):
-        super().__init__(stock)
+    def get_kdj(self, symbol: str, date: str, n: int, m: int):
+        """ 计算所有日期的 KDJ 序列, 返回给定日期的 KDJ 的J值 """
 
-    def get_kdj(self, date, n, m):
-        """ 获取给定日期的KDJ的J值 假定已有最新的K线数据 """
-        data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
-        assert data is not None, 'must have K-data before using get_kdj()!'
+        key = f'kdj-{n}-{m}'
+        if self.computed_memo.contains(symbol, key):
+            if len(self.computed_memo.get(symbol, key)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                if date in global_data_instance.symbol_to_date_set[symbol]:
+                    offset = global_data_instance.find_date_offset(symbol, date)
+                    return self.computed_memo.get(symbol, key)[offset]
+                else:
+                    return np.nan
 
-        closes = data['close'].to_numpy()
-        highs = data['high'].to_numpy()
-        lows = data['low'].to_numpy()
-
-        # 数据库存在分2种情况 1.已经算出来给定日期的LLV+HHV 2.没有给定日期的  注意K线数据是最新的
-        # 情况1: 直接提取   情况2: 算出最新的EMA数据
-        try:
-            date_index = list(data.index).index(date)  # 给定日期的数组下标
-        except ValueError:  # 给的日期太新导致越界 判断是情况1与情况2
-            date_index = 99999999999  # 保证数组越界
+        close_array = global_data_instance.get_array_since_date(symbol, OHLCV.CLOSE, global_data_instance.START_DOWNLOAD_DATE)
+        high_array = global_data_instance.get_array_since_date(symbol, OHLCV.HIGH, global_data_instance.START_DOWNLOAD_DATE)
+        low_array = global_data_instance.get_array_since_date(symbol, OHLCV.LOW, global_data_instance.START_DOWNLOAD_DATE)
 
         # 获取LLV(N)
-        try:
-            llvs = data[f'llv{n}'].to_numpy()  # 若没有LLV(N)数据会抛出KeyError
-            if str(llvs[date_index]) == 'nan':
-                raise RuntimeError
-        except (KeyError, RuntimeError, IndexError):
-            # 没有数据 计算出全部的LLV(n)值
-            llvs = self.llv(lows, n)
-            global_data.add_column(self.stock, 'llv%s' % n, llvs)  # 计算完毕 保存值到总表
+        key = f'llv-{n}'
+        llv = None
+        if self.computed_memo.contains(symbol, key):  # 已有计算
+            if len(self.computed_memo.get(symbol, key)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                llv = self.computed_memo.get(symbol, key)
+        if llv is None:
+            llv = self.llv(low_array, n)
+            self.computed_memo.set(symbol, key, llv)  # 计算出来后填入缓存
 
         # 获取HHV(N)
-        try:
-            hhvs = data[f'hhv{n}'].to_numpy()  # 若没有HHV(N)数据会抛出KeyError
-            if str(hhvs[date_index]) == 'nan':
-                raise RuntimeError
-        except (KeyError, RuntimeError, IndexError):
-            # 没有数据 计算出全部的HHV(n)值
-            hhvs = self.hhv(highs, n)
-            global_data.add_column(self.stock, 'hhv%s' % n, hhvs)  # 计算完毕 保存值到总表
+        key = f'hhv-{n}'
+        hhv = None
+        if self.computed_memo.contains(symbol, key):  # 已有计算
+            if len(self.computed_memo.get(symbol, key)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                hhv = self.computed_memo.get(symbol, key)
+        if hhv is None:
+            hhv = self.hhv(high_array, n)
+            self.computed_memo.set(symbol, key, hhv)  # 计算出来后填入缓存
 
-        rsv = (closes - llvs) / (hhvs - llvs + 0.00000001) * 100  # 避免除以0
-        if str(rsv[0]) == 'nan':  # 若第一天停牌 则hhv-llv等于0 相除之后会变成nan 导致之后的计算全部错误
+        # RSV:=(CLOSE-LLV(LOW,N))/(HHV(HIGH,N)-LLV(LOW,N))*100;
+        rsv: np.ndarray = (close_array - llv) / (hhv - llv + 0.00000001) * 100  # 避免除以0
+        if np.isnan(rsv[0]):  # 若第一天停牌 则hhv-llv等于0 相除之后会变成nan 导致之后的计算全部错误
             rsv[0] = 0
 
-        k = self.sma(rsv, m, 1)  # array
-        d = self.sma(k, m, 1)  # array
-        j = pd.Series(3 * k - 2 * d, index=data.index)  # series
+        k = self.sma(rsv, m, 1)
+        d = self.sma(k, m, 1)
+        j = 3 * k - 2 * d
 
         # 计算KDJ需要较多运算 不能直接读取(要算SMA) 所以把结果暂时存下来
-        self.temp_saved_values = j   # series
+        key = f'kdj-{n}-{m}'
+        self.computed_memo.set(symbol, key, j)
 
-        try:
-            date_index = list(data.index).index(date)  # 给定日期的数组下标
-            return j[date_index]
-        except ValueError:  # 当天停牌
-            return j[-1]  # 尝试返回最近的数据
+        offset = global_data_instance.find_date_offset(symbol, date)
+        return j[offset]
+
+kdj_instance = KDJ()

@@ -7,9 +7,7 @@ __pycache__/
 *.csv
 *.ini
 *.bat
-/d*.py
 /g*.py
 /r*.py
 /s*.py
 /t*.py
-/u*.py

@@ -2,9 +2,9 @@
 # -*- encoding: utf-8 -*-
 
 import numpy as np
-import pandas as pd
+from dto_enum import OHLCV
+from global_data import global_data_instance
 
-import global_data
 from indexes.base import Index, ref
 
 
@@ -15,24 +15,29 @@ class MTM(Index):
         MTMMA:MA(DELTA,M);  # 求M日移动平均
     """
 
-    def __init__(self, stock):
-        super().__init__(stock)
+    def get_mtm(self, symbol: str, date: str, n: int, m: int):
+        """ 计算所有日期的MTM序列, 返回给定日期的 MTM(n, m) """
 
-    def get_mtm(self, date, n=12, m=6):
-        """ 获取给定日期的 MTM(n, m) 假定已有最新的K线数据 计算出来后由于可能性多 不填入数据库 """
-        data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
-        closes = data['close'].to_numpy()
+        key = f'mtmma-{n}-{m}'
+        if self.computed_memo.contains(symbol, key):
+            if len(self.computed_memo.get(symbol, key)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                if date in global_data_instance.symbol_to_date_set[symbol]:
+                    offset = global_data_instance.find_date_offset(symbol, date)
+                    return self.computed_memo.get(symbol, key)[offset]
+                else:
+                    return np.nan
+
+
+        close_array = global_data_instance.get_array_since_date(symbol, OHLCV.CLOSE, global_data_instance.START_DOWNLOAD_DATE)
 
         # DELTA:CLOSE-REF(CLOSE,N)
-        delta = closes - ref(closes, n)
+        delta: np.ndarray = close_array - ref(close_array, n)
 
         # MTMMA:MA(DELTA,M)
-        mtm = pd.Series(self.ma(delta, m), index=data.index)  # 转换为series
+        mtmma = self.ma(delta, m)
+        self.computed_memo.set(symbol, key, mtmma)  # 计算出来后填入缓存
 
-        # 计算MTM需要较多运算 不能直接读取 所以把结果暂时存下来
-        self.temp_saved_values = mtm   # series
+        offset = global_data_instance.find_date_offset(symbol, date)
+        return mtmma[offset]
 
-        try:
-            return mtm.loc[date]  # 最终返回对应日期的MTM值
-        except KeyError:  # 该日停牌 返回nan
-            return np.nan
+mtm_instance = MTM()

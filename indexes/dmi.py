@@ -3,10 +3,10 @@
 
 import numba
 import numpy as np
-import pandas as pd
+from dto_enum import OHLCV
+from global_data import global_data_instance
 
-import global_data
-from indexes.base import Index, sum_recent, ref
+from indexes.base import Index, ref, sum_recent
 
 
 class DMI(Index):
@@ -24,39 +24,46 @@ class DMI(Index):
         参数为N
     """
 
-    def __init__(self, stock):
-        super().__init__(stock)
+    def get_dmi(self, symbol: str, date: str, n: int):
+        """ 计算所有日期的 PDI、MDI 序列, 返回给定日期的 (PDI, MDI) 值 """
 
-    def get_dmi(self, date, n):
-        """ 获取给定日期的DMI的PDI,MDI值 假定已有最新的K线数据 """
-        data = global_data.get_data(self.stock)  # 数据库存在返回dataframe 否则返回None
-        assert data is not None, 'must have K-data before using get_dmi()!'
+        key_pdi = f'pdi-{n}'
+        pdi = None
+        if self.computed_memo.contains(symbol, key_pdi):  # 已有计算
+            if len(self.computed_memo.get(symbol, key_pdi)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                pdi = self.computed_memo.get(symbol, key_pdi)
 
-        close = data['close'].to_numpy()
-        high = data['high'].to_numpy()
-        low = data['low'].to_numpy()
+        key_mdi = f'mdi-{n}'
+        mdi = None
+        if self.computed_memo.contains(symbol, key_mdi):  # 已有计算
+            if len(self.computed_memo.get(symbol, key_mdi)) == len(global_data_instance.symbol_to_date_list[symbol]):  # 并且array长度相等(数据存在且正确)
+                mdi = self.computed_memo.get(symbol, key_mdi)
 
-        mtr = calc_mtr(high, low, close, n)
-        hd = high - ref(high, 1)
-        hd[np.isnan(hd)] = 0
-        ld = ref(low, 1) - low
-        ld[np.isnan(ld)] = 0
+        if (pdi is not None) and (mdi is not None):
+            if date in global_data_instance.symbol_to_date_set[symbol]:
+                offset = global_data_instance.find_date_offset(symbol, date)
+                return (self.computed_memo.get(symbol, key_pdi)[offset], self.computed_memo.get(symbol, key_mdi)[offset])
+
+
+        close_array = global_data_instance.get_array_since_date(symbol, OHLCV.CLOSE, global_data_instance.START_DOWNLOAD_DATE)
+        high_array = global_data_instance.get_array_since_date(symbol, OHLCV.HIGH, global_data_instance.START_DOWNLOAD_DATE)
+        low_array = global_data_instance.get_array_since_date(symbol, OHLCV.LOW, global_data_instance.START_DOWNLOAD_DATE)
+
+        mtr = calc_mtr(high_array, low_array, close_array, n)
+        hd: np.ndarray = np.nan_to_num(high_array - ref(high_array, 1))
+        ld: np.ndarray = np.nan_to_num(ref(low_array, 1) - low_array)
 
         dmp = sum_recent(np.where(np.logical_and(hd>0, hd>ld), hd, 0), n)
         dmm = sum_recent(np.where(np.logical_and(ld>0, ld>hd), ld, 0), n)
 
-        pdi = pd.Series(dmp * 100 / mtr, index=data.index)  # series
-        mdi = pd.Series(dmm * 100 / mtr, index=data.index)  # series
+        pdi = dmp * 100 / mtr
+        mdi = dmm * 100 / mtr
 
-        # 计算DMI需要较多运算 所以把结果暂时存下来
-        self.temp_saved_pdi = pdi   # series
-        self.temp_saved_mdi = mdi   # series
+        self.computed_memo.set(symbol, key_pdi, pdi)  # 计算出来后填入缓存
+        self.computed_memo.set(symbol, key_mdi, mdi)  # 计算出来后填入缓存
 
-        try:
-            date_index = list(data.index).index(date)  # 给定日期的数组下标
-            return pdi[date_index], mdi[date_index]
-        except ValueError:  # 当天停牌
-            return pdi[-1], mdi[-1]  # 尝试返回最近的数据
+        offset = global_data_instance.find_date_offset(symbol, date)
+        return (pdi[offset], mdi[offset])
 
 
 @numba.jit(nopython=True, cache=True)
@@ -80,3 +87,5 @@ def calc_mtr(high: np.ndarray, low: np.ndarray, close: np.ndarray, n: int):
 
     mtr = sum_recent(arr6, n)
     return mtr
+
+dmi_instance = DMI()
